@@ -1,2 +1,212 @@
-# polar-EMS
-AI SMART ENERGY MANAGEMENT SYSTEM IN POLAR RESEARCH STATIONS 
+# POLAR-EMS
+
+**AI-Driven Smart Energy Management System for Polar Research Stations**
+
+A working full-stack prototype built for a Smart India Hackathon submission. It demonstrates how AI forecasting, anomaly detection, and a rule-based optimization engine can help a remote polar research station balance solar, wind, battery, and diesel generator power — while a deterministic safety layer guarantees critical loads (life support, comms, medical) are never put at risk by an AI recommendation.
+
+> **All data in this build is synthetic.** There is no real research station, no real sensors, and no live weather feed behind this instance — see [Limitations](#limitations--honesty-notes) below. The system is architected so every synthetic piece (data generator, weather service) can be swapped for a real one without changing the API contract or the frontend.
+
+---
+
+## Table of contents
+
+- [Problem & solution](#problem--solution)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Technology stack](#technology-stack)
+- [AI / ML methodology](#ai--ml-methodology)
+- [Optimization methodology](#optimization-methodology)
+- [Database](#database)
+- [Local setup](#local-setup)
+- [Environment variables](#environment-variables)
+- [Running tests](#running-tests)
+- [Demo accounts & demo workflow](#demo-accounts--demo-workflow)
+- [Deployment](#deployment)
+- [Limitations & honesty notes](#limitations--honesty-notes)
+- [Future work](#future-work)
+
+---
+
+## Problem & solution
+
+Polar research stations run on a fragile mix of solar (unavailable for months during polar night), wind, battery storage, and diesel generators — with every liter of diesel flown or shipped in at extreme cost, and heating demand spiking exactly when renewable generation is lowest. Operators today mostly react to conditions rather than anticipate them.
+
+POLAR-EMS is a monitoring + decision-support system that:
+
+1. Forecasts demand and renewable generation using real trained ML models.
+2. Detects anomalies (unusual consumption, abnormal battery discharge, generator inefficiency, sensor faults) with explanations.
+3. Recommends dispatch actions (charge/discharge battery, start generator, shed deferrable/non-critical load) with a stated reason and expected benefit for every recommendation.
+4. Never lets an AI recommendation violate hard safety limits (battery reserve floor, generator rated capacity, critical-load protection) — those are enforced by a separate deterministic layer the optimizer cannot override.
+5. Lets operators rehearse failure scenarios (Simulation Mode) and hypothetical conditions (What-If Analysis) before they happen for real.
+
+## Features
+
+All 17 features from the original spec are implemented and wired to a real backend (nothing is a static/fake page):
+
+Energy monitoring · AI demand forecasting (1h/6h/24h, RandomForestRegressor, MAE/RMSE/R² reported) · Solar & wind forecasting with SURPLUS/BALANCED/DEFICIT classification · AI anomaly detection (Isolation Forest + deterministic checks) · Rule-based energy optimization engine · Battery management · Generator management · Load prioritization (4 tiers, admin-editable) · Polar weather dashboard · Alert center · Simulation mode (8 scenarios) · What-if analysis · Historical analytics (24h/7d/30d) · Sustainability metrics (CO₂, renewable share) · Explainable AI recommendations (what/why/expected benefit on every one) · Deterministic safety fallback · Full login → dashboard → simulation → savings SIH demo flow.
+
+## Architecture
+
+```
+polar-EMS/
+├── backend/                 FastAPI application
+│   ├── app/
+│   │   ├── models/          SQLModel ORM entities (19 tables)
+│   │   ├── schemas/         Pydantic request/response schemas
+│   │   ├── routers/         REST endpoints, one file per domain
+│   │   ├── services/        synthetic data, ML forecasting, anomaly
+│   │   │                    detection, optimization engine, safety
+│   │   │                    rules, simulation/what-if engine
+│   │   ├── core/            config, security (JWT/bcrypt), auth deps
+│   │   ├── database.py
+│   │   └── main.py
+│   └── tests/                62 pytest tests
+├── frontend/                 Next.js 16 (App Router) + TypeScript + Tailwind v4
+│   ├── src/app/(dashboard)/  16 pages (dashboard, energy, forecasting, …)
+│   ├── src/components/       reusable UI kit, charts, layout, dashboard widgets
+│   ├── src/lib/               typed API client, auth store (zustand), toasts
+│   └── e2e/                  Playwright end-to-end tests
+├── docs/                      architecture, AI model, optimization, API, DB, demo
+├── docker-compose.yml         optional one-command local stack
+└── render.yaml                Render.com blueprint for the API
+```
+
+Data flow: the synthetic generator seeds ~60 days of hourly station history into Postgres → the ML services train against that history (cached in-process) → routers assemble a live `StationState` from the latest readings + forecasts → the optimization engine and safety layer turn that state into recommendations, alerts, and (in Simulation/What-If) recalculated outcomes → the frontend renders all of it through a single typed API client.
+
+## Technology stack
+
+| Layer | Choice |
+|---|---|
+| Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4 |
+| Charts | Recharts |
+| Frontend state | Zustand (auth session), a small typed `fetch` wrapper (no heavier data-fetching lib needed at this scale) |
+| Backend | FastAPI, Pydantic v2 |
+| ORM | SQLModel (SQLAlchemy 2 + Pydantic) |
+| Database | PostgreSQL (SQLite fallback for zero-config local runs) |
+| AI/ML | scikit-learn (RandomForest/GradientBoosting regressors, IsolationForest), NumPy, Pandas |
+| Auth | JWT (python-jose) + bcrypt password hashing |
+| Testing | Pytest (backend, 62 tests), Playwright (frontend E2E, critical flows) |
+| Docs | OpenAPI/Swagger (auto-generated at `/docs`), this README, `docs/` |
+
+## AI / ML methodology
+
+See [`docs/ai-model.md`](docs/ai-model.md) for full detail. Summary:
+
+- **Demand forecasting**: direct multi-step `RandomForestRegressor`, one model per horizon (1h/6h/24h), trained on lag features (t-1, t-24, t-168), rolling statistics, calendar features (hour/month/weekend, sin/cos encoded), and temperature. Evaluated with MAE/RMSE/R² on a time-ordered 80/20 split (never shuffled — this is a time series). Typical result on the seeded demo data: R² ≈ 0.42–0.48 (demand has injected random spikes, so this is an honest, not cherry-picked, number).
+- **Renewable forecasting**: `GradientBoostingRegressor` per source (solar/wind) per horizon, same feature approach plus weather (irradiance, cloud cover, wind speed). Solar forecasts R² ≈ 0.6–0.8; wind is inherently noisier (R² can go negative at longer horizons on some runs — reported honestly, not hidden).
+- **Anomaly detection**: `IsolationForest` for consumption, battery discharge rate, and renewable output (each scored against an hour-of-day baseline so "expected" reflects normal daily rhythm, not a flat average); deterministic threshold checks for generator fuel efficiency (vs. rated L/kWh) and raw sensor plausibility (range/NaN checks).
+- Every prediction is labeled with its model name, horizon, and a confidence derived from the model's own R² — nothing is presented as a measured value.
+
+## Optimization methodology
+
+See [`docs/optimization.md`](docs/optimization.md). The dispatch/recommendation engine is a **deterministic, explainable rules engine**, not a black-box optimizer — every recommendation carries a `reason` and `expected_benefit` string generated from the actual numbers that triggered it. It is layered under a separate, non-negotiable **safety layer** (`app/services/safety.py`) that clamps battery SOC to its configured min/max, caps generator output at rated capacity, and rejects invalid/missing sensor readings — the optimizer's suggestions pass through this layer before being called a "control command" anywhere in the UI, and the AI can never widen those limits.
+
+## Database
+
+19 normalized PostgreSQL tables (users, stations, energy sources/readings/consumption, batteries + readings, generators + readings, loads + readings, weather, predictions, anomalies, optimization results, alerts, simulation scenarios/runs, reports) — see [`docs/database.md`](docs/database.md) for the full schema and relationships.
+
+## Local setup
+
+Requires Python 3.11+, Node 20+, and PostgreSQL (a local Postgres works; the app also falls back to SQLite automatically if `DATABASE_URL` is unset, for a zero-dependency quick look).
+
+### 1. Backend
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+cp ../.env.example .env            # then edit DATABASE_URL if not using the default local Postgres
+# create the database once, e.g.:
+#   createuser polar_ems --pwprompt
+#   createdb polar_ems -O polar_ems
+
+python -m app.services.seed        # seeds a demo station with 60 days of synthetic history
+uvicorn app.main:app --reload --port 8000
+```
+
+API docs: http://localhost:8000/docs · Health check: http://localhost:8000/health
+
+### 2. Frontend
+
+```bash
+cd frontend
+npm install
+cp .env.example .env.local         # NEXT_PUBLIC_API_BASE_URL defaults to http://localhost:8000
+npm run dev
+```
+
+Open http://localhost:3000 — you'll be redirected to `/login`.
+
+### Optional: one-command Docker stack
+
+```bash
+docker compose up --build
+```
+
+(builds Postgres + backend + frontend; the backend container seeds demo data on first boot.)
+
+## Environment variables
+
+See [`.env.example`](.env.example) at the repo root for the full list with descriptions (`DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ORIGINS`, `WEATHER_API_KEY`, `NEXT_PUBLIC_API_BASE_URL`). No real secrets are committed anywhere in this repo — `.env` files are gitignored.
+
+## Running tests
+
+```bash
+# Backend — 62 tests: safety edge cases (SOC 0/100, invalid sensors), optimization
+# edge cases (zero renewables, generator unavailable, low fuel), forecasting,
+# anomaly detection, simulation, and full API/RBAC integration tests.
+cd backend && source .venv/bin/activate && pytest -q
+
+# Frontend — TypeScript + lint
+cd frontend && npx tsc --noEmit && npx eslint src
+
+# Frontend — Playwright E2E (needs both servers running on :8000 and :3000)
+cd frontend && npx playwright test
+```
+
+## Demo accounts & demo workflow
+
+Seeded by `python -m app.services.seed`:
+
+| Role | Email | Password |
+|---|---|---|
+| Station Energy Operator | `operator@polar-ems.demo` | `operator123` |
+| Station Administrator | `admin@polar-ems.demo` | `admin123` |
+| Research Scientist | `scientist@polar-ems.demo` | `scientist123` |
+
+Suggested SIH demo flow (full script in [`docs/demo.md`](docs/demo.md)):
+
+1. Log in as **Station Administrator** → Dashboard shows live KPIs, the energy-flow diagram, active alerts, and current AI recommendations.
+2. **Simulation Mode** → activate "Solar Generation Drop" → watch demand/generation/battery/fuel recalculate live and new AI recommendations appear (e.g. "start generator", "shed deferrable load"), each with its reason.
+3. **Generator Management** → show the Baseline-vs-AI-Optimized fuel/CO₂ comparison.
+4. **What-If Analysis** → drop battery SOC to 12% and mark the generator unavailable → show the engine correctly refuses to recommend further battery discharge and instead recommends load shedding, protecting critical loads.
+5. **Analytics** / **Reports** → show 7-day trends and generate a printable report.
+
+## Deployment
+
+- **Frontend**: Vercel-ready as-is (`npm run build` / `next start`); set `NEXT_PUBLIC_API_BASE_URL` to your deployed backend URL in the Vercel project's environment variables.
+- **Backend**: Render-ready via [`render.yaml`](render.yaml) (Railway/any Python host works the same way — `pip install -r requirements.txt`, then `uvicorn app.main:app --host 0.0.0.0 --port $PORT`). A `Dockerfile` is also included.
+- **Database**: any managed PostgreSQL works (Render Postgres, Supabase, Railway, RDS) — just set `DATABASE_URL`. Run `python -m app.services.seed` once against the target database to load demo data.
+
+## Limitations & honesty notes
+
+Per the project's own policy of not overstating what's real:
+
+- **All data is synthetic.** Demand/solar/wind/weather/battery/generator history is generated by `app/services/synthetic_data.py`, a physically-motivated but hand-built simulator (seasonal polar day/night solar envelope, wind as a mean-reverting random walk, heating load driven by cold, greedy battery/generator dispatch for the seed history). It is not measured data from any real station, and the UI labels it as synthetic everywhere it appears.
+- **The optimization engine is rule-based, not a trained RL/optimizer model.** This is a deliberate choice for explainability and safety-review-ability in a prototype, documented in `docs/optimization.md`.
+- **"Estimated savings" figures are simulation output**, computed by comparing a simple baseline dispatch strategy to this engine's forecast+battery-aware strategy on the same current state — they are not audited or guaranteed real-world numbers, and every place they're shown says so.
+- **The weather service is a synthetic simulator** unless `WEATHER_API_KEY` is set; the response shape is designed so a real provider can be swapped in without touching the frontend.
+- **Hardware control is simulated.** "Start generator" / "shed load" recommendations are advisory text in this prototype; there is no real hardware in the loop. The codebase already distinguishes an AI recommendation from a safety-checked control command (see `app/services/safety.py`) so real actuation could be added behind that same boundary.
+- Wind forecasting R² can be low or negative at longer horizons in some seeded runs — reported as-is rather than tuned away, since a real wind signal is genuinely hard to forecast from calendar + weather-proxy features alone.
+
+## Future work
+
+- Real weather API integration (the abstraction is already in place).
+- Alembic migrations instead of `create_all` for schema evolution.
+- Replace the process-lifetime ML model cache with a scheduled retraining job.
+- Multi-station support (schema already supports it; UI currently assumes one station).
+- A trained optimization model (e.g. RL) evaluated *against* the current rules engine as a baseline, rather than replacing it outright.
+- Hardware-in-the-loop integration behind the existing recommendation/control-command boundary.
+- Stronger typed Pydantic response schemas for every endpoint (several composite endpoints currently return typed-on-the-frontend dicts rather than full backend-side Pydantic response models).
