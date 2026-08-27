@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+/* ============================================================
+   CobaltFlow marketing site — design tokens.
+   Derived from the ui-ux-pro-max skill: Minimalism & Swiss Style
+   (dark variant) + "API Developer Portal" color match, blended with
+   a cobalt-blue brand accent for identity. High contrast, no
+   gradients-as-decoration, restrained motion.
+   ============================================================ */
+
+:root {
+  --background: #020617;
+  --surface: #0b1220;
+  --surface-raised: #0f172a;
+  --border: #1e293b;
+  --border-strong: #2c3b52;
+
+  --foreground: #f8fafc;
+  --muted: #94a3b8;
+  --muted-2: #64748b;
+
+  --brand: #3b82f6;
+  --brand-dim: #1d4ed8;
+  --brand-bg: #0c1a33;
+
+  --success: #22c55e;
+  --success-bg: #0f2a1a;
+
+  --font-sans: var(--font-jakarta);
+  --font-mono: var(--font-jetbrains);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-2: var(--muted-2);
+  --color-brand: var(--brand);
+  --color-brand-dim: var(--brand-dim);
+  --color-success: var(--success);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+.font-mono-tech {
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+
+::selection {
+  background: var(--brand-dim);
+  color: var(--foreground);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 6px;
+}
