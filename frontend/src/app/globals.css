@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+/* ============================================================
+   POLAR-EMS design tokens — scientific / operations-center look.
+   Fixed dark theme (control-room instrumentation), no gradients,
+   no glassmorphism. Status colors are the only saturated accents.
+   ============================================================ */
+
+:root {
+  --background: #0a0e16;
+  --surface: #10161f;
+  --surface-raised: #151d29;
+  --border: #23303f;
+  --border-strong: #34445a;
+
+  --foreground: #e6edf3;
+  --muted: #8695a7;
+  --muted-2: #5b6b7f;
+
+  --accent: #38bdf8;
+  --accent-dim: #1e6b8c;
+
+  --status-normal: #22c55e;
+  --status-normal-bg: #0f2a1a;
+  --status-warning: #f59e0b;
+  --status-warning-bg: #2c2109;
+  --status-critical: #ef4444;
+  --status-critical-bg: #2c1212;
+  --status-info: #38bdf8;
+  --status-info-bg: #0c2430;
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-2: var(--muted-2);
+  --color-accent: var(--accent);
+  --color-accent-dim: var(--accent-dim);
+  --color-status-normal: var(--status-normal);
+  --color-status-warning: var(--status-warning);
+  --color-status-critical: var(--status-critical);
+  --color-status-info: var(--status-info);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+.font-data {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 6px;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.animate-pulse-dot {
+  animation: pulse-dot 1.8s ease-in-out infinite;
+}
