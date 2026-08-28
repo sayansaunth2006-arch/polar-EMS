@@ -2,9 +2,11 @@
 
 PostgreSQL, accessed via SQLModel (SQLAlchemy 2 core + Pydantic). Falls back to a local SQLite file automatically when `DATABASE_URL` is unset, so the API can be evaluated with zero external setup — see `backend/app/database.py`.
 
-## Why `create_all()` instead of Alembic migrations
+## Schema migrations
 
-This prototype uses `SQLModel.metadata.create_all(engine)` at startup rather than a migration tool. For a fast-moving hackathon build where the schema changed dozens of times during development, `create_all` is strictly simpler and faster to iterate with, at the cost of not supporting non-destructive schema evolution against data that must be preserved. Listed under README "Future work" as the first thing to add for a production deployment (Alembic is already compatible with SQLModel's declarative classes, so this is additive, not a rewrite).
+Schema changes are versioned with **Alembic** (`backend/migrations/`), which is fully compatible with SQLModel's declarative classes (`target_metadata = SQLModel.metadata` in `migrations/env.py`). The connection string always comes from `Settings.database_url` (the `DATABASE_URL` environment variable) rather than a value written into `alembic.ini`, so no connection string is committed. Production deploys run `alembic upgrade head` before starting the API (see `render.yaml` / `Dockerfile` / `docker-compose.yml`).
+
+`app.database.init_db()` still calls `SQLModel.metadata.create_all(engine)` on startup as a zero-friction fallback for local/SQLite runs where migrations weren't run explicitly — `create_all` uses `checkfirst`, so it's a no-op once Alembic has created the tables. To evolve the schema: change the SQLModel class(es), then `cd backend && alembic revision --autogenerate -m "describe the change"`, review the generated file, and commit it alongside the model change.
 
 ## Schema (19 tables)
 

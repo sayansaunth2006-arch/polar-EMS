@@ -16,8 +16,11 @@ engine = create_engine(settings.database_url, echo=False, connect_args=_connect_
 
 
 def init_db() -> None:
-    """Create all tables. In production, prefer real migrations (Alembic);
-    for this prototype, declarative create_all keeps setup single-command."""
+    """Create any tables not yet present (checkfirst, so this is a no-op once
+    Alembic migrations have run). Production deploys apply schema changes via
+    `alembic upgrade head` (see backend/migrations/); this call remains as a
+    zero-friction fallback for local/SQLite runs where migrations weren't
+    run explicitly."""
     from app import models  # noqa: F401  (ensure models are registered)
 
     SQLModel.metadata.create_all(engine)

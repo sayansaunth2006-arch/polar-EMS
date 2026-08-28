@@ -38,7 +38,7 @@ POLAR-EMS is a conventional three-tier app: a Next.js frontend, a FastAPI backen
 - **`services/safety.py`** has zero dependency on any other service — it's pure, deterministic threshold logic (battery SOC clamp, generator capacity clamp, sensor-range validation) that every other service is expected to run its output through before anything is called a "control command".
 - **`services/optimization.py`** and **`services/simulation.py`** are also pure functions of a `StationState` in, `Recommendation[]`/`SimulationOutcome` out — no DB access — which is what makes them straightforward to unit-test with hand-built edge-case states (see `tests/test_optimization.py`, `tests/test_simulation.py`).
 - **`services/forecasting.py`** and **`services/anomaly_detection.py`** are pure functions of a pandas DataFrame in, typed results out — also unit-tested independently of the database and the API layer.
-- **`models/`** is the only place SQLModel table classes live; `database.py` owns the engine/session and `SQLModel.metadata.create_all()` for table creation (see `docs/database.md` for why this project uses `create_all` instead of Alembic).
+- **`models/`** is the only place SQLModel table classes live; `database.py` owns the engine/session, and schema creation/evolution is versioned through Alembic migrations in `migrations/` (see `docs/database.md`).
 
 ## Frontend layering
 
