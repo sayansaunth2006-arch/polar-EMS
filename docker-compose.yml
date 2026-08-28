@@ -1,0 +1,50 @@
+# Optional local-development stack (Postgres + backend + frontend).
+# Docker is NOT required to run POLAR-EMS locally — see the root README for
+# the plain `venv` + `npm run dev` workflow, which is faster for iteration.
+# This is provided for a one-command environment when Docker is preferred.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: polar_ems
+      POSTGRES_USER: polar_ems
+      POSTGRES_PASSWORD: polar_ems_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - polar_ems_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U polar_ems"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg2://polar_ems:polar_ems_dev_password@db:5432/polar_ems
+      JWT_SECRET_KEY: dev-only-secret-change-in-production
+      CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "alembic upgrade head && python -m app.services.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+
+volumes:
+  polar_ems_db_data:

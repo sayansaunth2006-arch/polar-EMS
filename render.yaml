@@ -6,13 +6,6 @@
 # The frontend is intended for Vercel (see the root README's Deployment
 # section) rather than Render, since Vercel is the natural fit for a
 # Next.js app; this blueprint only covers the API + database.
-#
-# NOTE: this file alone is not sufficient for a working deploy. It expects
-# a `backend/` directory (the FastAPI app, requirements.txt) to exist on
-# whatever branch Render builds from. As of this commit, the `main` branch
-# does not yet contain that backend code (it currently holds an unrelated
-# placeholder Next.js app) — see the POLAR-EMS backend+frontend on the
-# `claude/ui-ux-pro-max-skill-install-9j46f2` branch / PR #1.
 
 databases:
   - name: polar-ems-db
